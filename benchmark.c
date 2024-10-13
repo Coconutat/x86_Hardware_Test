@@ -6,6 +6,11 @@
 
 #if defined(_WIN32) || defined(_WIN64) // Windows 系统
 #include <windows.h>
+#include <tlhelp32.h>
+
+void set_utf8_encoding_if_powershell() {
+SetConsoleOutputCP(CP_UTF8); // 设置控制台编码为 UTF-8
+}
 
 void print_processor_info() {
     SYSTEM_INFO sysInfo;
@@ -227,6 +232,10 @@ int main() {
         printf("Unsupported operating system.\n");
     #endif
 
+    #if defined(_WIN64) || defined(_WIN32)
+        set_utf8_encoding_if_powershell();
+    #endif
+
     print_processor_info();
 
     double total_score = 0.0;
@@ -250,5 +259,13 @@ int main() {
     total_score += memory_bandwidth_test();
 
     printf("综合得分: %.2f\n", total_score);
+
+    #if defined(_WIN32) || defined(_WIN64)
+    system("pause");  // 在程序结束前暂停，等待用户按键
+    #else
+    printf("按 Enter 键继续...\n");
+    getchar();  // Linux 下等待用户按下 Enter 键
+    #endif
+
     return 0;
 }
