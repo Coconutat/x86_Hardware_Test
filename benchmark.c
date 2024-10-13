@@ -4,6 +4,92 @@
 #include <time.h>
 #include <string.h> // 包含 memset 函数
 
+#if defined(_WIN32) || defined(_WIN64) // Windows 系统
+#include <windows.h>
+
+void print_processor_info() {
+    SYSTEM_INFO sysInfo;
+    GetSystemInfo(&sysInfo);
+    int logical_cores = sysInfo.dwNumberOfProcessors;
+
+    // 使用 GetLogicalProcessorInformationEx 获取物理核心数
+    DWORD len = 0;
+    GetLogicalProcessorInformationEx(RelationProcessorCore, NULL, &len);
+    PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX buffer = (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)malloc(len);
+    GetLogicalProcessorInformationEx(RelationProcessorCore, buffer, &len);
+
+    int physical_cores = 0;
+    PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX ptr = buffer;
+    while ((BYTE *)ptr < (BYTE *)buffer + len) {
+        if (ptr->Relationship == RelationProcessorCore) {
+            physical_cores++;
+        }
+        ptr = (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)((BYTE *)ptr + ptr->Size);
+    }
+    free(buffer);
+
+    // 获取处理器名称
+    char processorName[256] = "Unknown Processor";
+    DWORD bufferSize = sizeof(processorName);
+    HKEY hKey;
+    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE,
+                      "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0",
+                      0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        RegQueryValueExA(hKey, "ProcessorNameString", NULL, NULL,
+                         (LPBYTE)processorName, &bufferSize);
+        RegCloseKey(hKey);
+    }
+
+    printf("处理器名称: %s\n", processorName);
+    printf("物理核心数: %d\n", physical_cores);
+    printf("逻辑核心数: %d\n", logical_cores);
+}
+
+#elif defined(__linux__) // Linux 系统
+#include <unistd.h>
+#include <string.h>
+
+void print_processor_info() {
+    // 获取逻辑核心数
+    int logical_cores = sysconf(_SC_NPROCESSORS_ONLN);
+
+    // 获取物理核心数
+    int physical_cores = 0;
+    FILE *cpuInfoFile = fopen("/proc/cpuinfo", "r");
+    char line[256];
+    while (fgets(line, sizeof(line), cpuInfoFile)) {
+        if (strncmp(line, "core id", 7) == 0) {
+            physical_cores++;
+        }
+    }
+    fclose(cpuInfoFile);
+
+    // 读取处理器名称
+    char processorName[256] = "Unknown Processor";
+    cpuInfoFile = fopen("/proc/cpuinfo", "r");
+    if (cpuInfoFile != NULL) {
+        while (fgets(line, sizeof(line), cpuInfoFile)) {
+            if (strncmp(line, "model name", 10) == 0) {
+                char *name = strchr(line, ':') + 2;
+                strncpy(processorName, name, sizeof(processorName) - 1);
+                processorName[strcspn(processorName, "\n")] = '\0';
+                break;
+            }
+        }
+        fclose(cpuInfoFile);
+    }
+
+    printf("处理器名称: %s\n", processorName);
+    printf("物理核心数: %d\n", physical_cores > 0 ? physical_cores : logical_cores / 2);
+    printf("逻辑核心数: %d\n", logical_cores);
+}
+
+#else
+void print_processor_info() {
+    printf("不支持的操作系统。\n");
+}
+#endif
+
 // 进度显示
 #define PROGRESS_STEP 5 // 每个测试的进度步长
 
@@ -130,6 +216,19 @@ double memory_bandwidth_test() {
 
 // 主函数
 int main() {
+
+    #if defined(_WIN32) || defined(_WIN64)
+        printf("This program is compiled for Windows.\n");
+    #elif defined(__linux__)
+        printf("This program is compiled for Linux.\n");
+    #elif defined(__APPLE__)
+        printf("This program is compiled for macOS.\n");
+    #else
+        printf("Unsupported operating system.\n");
+    #endif
+
+    print_processor_info();
+
     double total_score = 0.0;
 
     printf("开始整数运算测试...\n");
