@@ -1,153 +1,155 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
+#include <pthread.h>
 #include <time.h>
-#include <windows.h>
+#include <string.h> // 包含 memset 函数
 
-#define SCALE_FACTOR 1e6 // 缩小结果的因子
+// 进度显示
+#define PROGRESS_STEP 5 // 每个测试的进度步长
+
+void show_progress(const char *test_name, int percent) {
+    printf("%s测试进度: %d%%\n", test_name, percent);
+}
 
 // 整数运算测试
-double integer_test() {
-    int sum = 0;
-    for (int i = 0; i < 100000000; ++i) { // 增加运算次数
-        sum += i % 10;
+double integer_operations_test() {
+    double sum = 0.0;
+    int max_iter = 10000; // 降低迭代次数
+    for (int i = 1; i <= max_iter; ++i) {
+        sum += i; // 计算1到max_iter的和
+        if (i % (max_iter / (100 / PROGRESS_STEP)) == 0) {
+            show_progress("整数运算", i * 100 / max_iter);
+        }
     }
-    return sum / SCALE_FACTOR;
+    double score = sum / 100; // 缩放以控制分数范围
+    printf("整数运算分数: %.2f\n", score); // 输出每个项目的分数
+    return score;
 }
 
 // 浮点运算测试
-double float_test() {
+double float_operations_test() {
     double sum = 0.0;
-    for (int i = 0; i < 10000000; ++i) { // 增加运算次数
-        sum += sqrt(i) * 0.5;
+    int max_iter = 10000; // 降低迭代次数
+    for (int i = 1; i <= max_iter; ++i) {
+        sum += (double)i / 3.14; // 浮点运算
+        if (i % (max_iter / (100 / PROGRESS_STEP)) == 0) {
+            show_progress("浮点运算", i * 100 / max_iter);
+        }
     }
-    return sum / SCALE_FACTOR;
+    double score = sum / 100; // 缩放以控制分数范围
+    printf("浮点运算分数: %.2f\n", score); // 输出每个项目的分数
+    return score;
 }
 
 // 位操作测试
-double bitwise_test() {
-    int sum = 0;
-    for (int i = 0; i < 100000000; ++i) { // 增加运算次数
-        sum ^= i;
+double bit_operations_test() {
+    double sum = 0.0;
+    int max_iter = 10000; // 降低迭代次数
+    for (int i = 1; i <= max_iter; ++i) {
+        sum += (double)(i ^ (i >> 1)); // 使用异或操作
+        if (i % (max_iter / (100 / PROGRESS_STEP)) == 0) {
+            show_progress("位操作", i * 100 / max_iter);
+        }
     }
-    return sum / SCALE_FACTOR;
+    double score = sum / 100; // 确保返回值在合理范围内
+    printf("位操作分数: %.2f\n", score); // 输出每个项目的分数
+    return score;
 }
 
 // 分支预测测试
 double branch_test() {
-    int sum = 0;
-    for (int i = 0; i < 10000000; ++i) { // 增加运算次数
-        if (i % 2 == 0) {
-            sum += i;
-        } else {
-            sum -= i;
+    double sum = 0.0;
+    int max_iter = 100000; // 降低迭代次数
+    for (int i = 0; i < max_iter; ++i) {
+        sum += (i % 2 == 0) ? i : i * 2; // 确保不会有负值
+        if (i % (max_iter / (100 / PROGRESS_STEP)) == 0) {
+            show_progress("分支预测", i * 100 / max_iter);
         }
     }
-    return sum / SCALE_FACTOR;
+    double score = sum / (max_iter / 100); // 缩放以控制分数范围
+    printf("分支预测分数: %.2f\n", score); // 输出每个项目的分数
+    return score;
 }
 
-// 多线程测试（单线程模拟）
-double multithread_test() {
-    int sum = 0;
-    for (int i = 0; i < 100000000; ++i) { // 增加运算次数
-        sum += i % 3;
+// 简单线程功能
+void *thread_function(void *arg) {
+    double *sum = (double *)arg;
+    for (int i = 1; i <= 1000; i++) {
+        *sum += i; // 各线程累加
     }
-    return sum / SCALE_FACTOR;
+    return NULL;
+}
+
+// 多线程测试
+double multithreading_test() {
+    double sum = 0.0;
+    int max_threads = 4; // 线程数量
+    pthread_t threads[max_threads];
+    double *thread_sums = (double *)malloc(max_threads * sizeof(double)); // 动态分配数组
+    memset(thread_sums, 0, max_threads * sizeof(double)); // 初始化为0
+
+    // 创建线程并计算
+    for (int i = 0; i < max_threads; ++i) {
+        pthread_create(&threads[i], NULL, thread_function, (void *)&thread_sums[i]);
+    }
+
+    for (int i = 0; i < max_threads; ++i) {
+        pthread_join(threads[i], NULL);
+        sum += thread_sums[i]; // 汇总每个线程的结果
+    }
+    
+    free(thread_sums); // 释放动态分配的内存
+    double score = sum / (max_threads * 100); // 缩放以控制分数范围
+    printf("多线程分数: %.2f\n", score); // 输出每个项目的分数
+    return score;
 }
 
 // 内存带宽测试
 double memory_bandwidth_test() {
-    int arr[1000000];
-    int sum = 0;
-    for (int i = 0; i < 1000000; ++i) {
-        arr[i] = i;
-    }
-    for (int i = 0; i < 1000000; ++i) {
-        sum += arr[i];
-    }
-    return sum / SCALE_FACTOR;
-}
+    double sum = 0.0;
+    int max_iter = 10000; // 降低迭代次数
+    double *arr = (double *)malloc(max_iter * sizeof(double)); // 使用double类型
 
-// 缓存测试
-double cache_test() {
-    int arr[1000000];
-    int sum = 0;
-    for (int i = 0; i < 1000000; ++i) {
-        arr[i] = i;
+    if (!arr) {
+        fprintf(stderr, "内存分配失败！\n");
+        return 0.0;
     }
-    for (int i = 0; i < 1000000; ++i) {
-        sum += arr[i];
-    }
-    return sum / SCALE_FACTOR;
-}
 
-// 内存延迟测试
-double memory_latency_test() {
-    int sum = 0;
-    for (int i = 0; i < 1000000; ++i) {
-        sum += i % 5;
-    }
-    return sum / SCALE_FACTOR;
-}
-
-// 内存分配性能测试
-double memory_allocation_test() {
-    int *arr = (int*)malloc(100000 * sizeof(int));
-    if (!arr) return 0;
-    int sum = 0;
-    for (int i = 0; i < 100000; ++i) {
-        arr[i] = i;
-        sum += arr[i];
+    for (int i = 0; i < max_iter; ++i) {
+        arr[i] = (double)i; // 初始化数组
+        sum += arr[i]; // 简单计算
+        if (i % (max_iter / (100 / PROGRESS_STEP)) == 0) {
+            show_progress("内存带宽", i * 100 / max_iter);
+        }
     }
     free(arr);
-    return sum / SCALE_FACTOR;
+    double score = sum / (max_iter / 100); // 缩放以控制分数范围
+    printf("内存带宽分数: %.2f\n", score); // 输出每个项目的分数
+    return score;
 }
 
+// 主函数
 int main() {
-    // 设置控制台为UTF-8编码
-    SetConsoleOutputCP(CP_UTF8);
+    double total_score = 0.0;
 
     printf("开始整数运算测试...\n");
-    double integer_score = integer_test();
-    printf("整数运算分数: %.2f\n", integer_score);
+    total_score += integer_operations_test();
 
     printf("开始浮点运算测试...\n");
-    double float_score = float_test();
-    printf("浮点运算分数: %.2f\n", float_score);
+    total_score += float_operations_test();
 
     printf("开始位操作测试...\n");
-    double bitwise_score = bitwise_test();
-    printf("位操作分数: %.2f\n", bitwise_score);
+    total_score += bit_operations_test();
 
     printf("开始分支预测测试...\n");
-    double branch_score = branch_test();
-    printf("分支预测分数: %.2f\n", branch_score);
+    total_score += branch_test();
 
     printf("开始多线程测试...\n");
-    double multithread_score = multithread_test();
-    printf("多线程分数: %.2f\n", multithread_score);
+    total_score += multithreading_test();
 
     printf("开始内存带宽测试...\n");
-    double memory_bandwidth_score = memory_bandwidth_test();
-    printf("内存带宽分数: %.2f\n", memory_bandwidth_score);
-
-    printf("开始缓存测试...\n");
-    double cache_score = cache_test();
-    printf("缓存分数: %.2f\n", cache_score);
-
-    printf("开始内存延迟测试...\n");
-    double memory_latency_score = memory_latency_test();
-    printf("内存延迟分数: %.2f\n", memory_latency_score);
-
-    printf("开始内存分配性能测试...\n");
-    double memory_allocation_score = memory_allocation_test();
-    printf("内存分配性能分数: %.2f\n", memory_allocation_score);
-
-    double total_score = integer_score + float_score + bitwise_score + branch_score + 
-                         multithread_score + memory_bandwidth_score + cache_score + 
-                         memory_latency_score + memory_allocation_score;
+    total_score += memory_bandwidth_test();
 
     printf("综合得分: %.2f\n", total_score);
-
     return 0;
 }
