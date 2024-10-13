@@ -1,0 +1,21 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-Command",
+                "if (!(Test-Path -Path '${fileDirname}/out')) { New-Item -ItemType Directory -Path '${fileDirname}/out' }; gcc ${file} -fexec-charset=utf-8 -o ${fileDirname}/out/${fileBasenameNoExtension}.exe -lpthread"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$gcc"
+            ]
+        }
+    ]
+}
