@@ -7,7 +7,7 @@
             "command": "powershell",
             "args": [
                 "-Command",
-                "if (!(Test-Path -Path '${fileDirname}/out')) { New-Item -ItemType Directory -Path '${fileDirname}/out' }; gcc ${file} -fexec-charset=utf-8 -o ${fileDirname}/out/${fileBasenameNoExtension}.exe -lpthread"
+                "if (!(Test-Path -Path '${fileDirname}/out')) { New-Item -ItemType Directory -Path '${fileDirname}/out' }; gcc ${file} -static -static-libgcc -static-libstdc++ -fexec-charset=utf-8 -o ${fileDirname}/out/${fileBasenameNoExtension}.exe -lpthread"
             ],
             "group": {
                 "kind": "build",
