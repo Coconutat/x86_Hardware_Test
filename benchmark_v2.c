@@ -10,7 +10,7 @@
 #include <tlhelp32.h>
 
 void set_utf8_encoding_if_powershell() {
-SetConsoleOutputCP(CP_UTF8); // 设置控制台编码为 UTF-8
+    SetConsoleOutputCP(CP_UTF8); // 设置控制台编码为 UTF-8
 }
 
 void print_processor_info() {
@@ -38,11 +38,8 @@ void print_processor_info() {
     char processorName[256] = "Unknown Processor";
     DWORD bufferSize = sizeof(processorName);
     HKEY hKey;
-    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE,
-                      "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0",
-                      0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-        RegQueryValueExA(hKey, "ProcessorNameString", NULL, NULL,
-                         (LPBYTE)processorName, &bufferSize);
+    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        RegQueryValueExA(hKey, "ProcessorNameString", NULL, NULL, (LPBYTE)processorName, &bufferSize);
         RegCloseKey(hKey);
     }
 
@@ -56,20 +53,18 @@ int get_cpu_threads() {
     GetSystemInfo(&sysinfo);
     return sysinfo.dwNumberOfProcessors;
 }
-#define THREAD_COUNT (get_cpu_threads())   // 使用动态获取多线程数
+#define THREAD_COUNT (get_cpu_threads())    // 使用动态获取多线程数
 
-#elif defined(__linux__) // Linux 系统
+#elif defined(__linux__)    // Linux 系统
 #include <unistd.h>
 #include <string.h>
 
 void print_processor_info() {
-    // 获取逻辑核心数
     int logical_cores = sysconf(_SC_NPROCESSORS_ONLN);
 
-    // 获取物理核心数
     int physical_cores = 0;
     FILE *cpuInfoFile = fopen("/proc/cpuinfo", "r");
-    char line[256];
+    char line;
     while (fgets(line, sizeof(line), cpuInfoFile)) {
         if (strncmp(line, "core id", 7) == 0) {
             physical_cores++;
@@ -77,8 +72,7 @@ void print_processor_info() {
     }
     fclose(cpuInfoFile);
 
-    // 读取处理器名称
-    char processorName[256] = "Unknown Processor";
+    char processorName = "Unknown Processor";
     cpuInfoFile = fopen("/proc/cpuinfo", "r");
     if (cpuInfoFile != NULL) {
         while (fgets(line, sizeof(line), cpuInfoFile)) {
@@ -95,8 +89,8 @@ void print_processor_info() {
     printf("处理器名称: %s\n", processorName);
     printf("物理核心数: %d\n", physical_cores > 0 ? physical_cores : logical_cores / 2);
     printf("逻辑核心数: %d\n", logical_cores);
-    #define THREAD_COUNT (sysconf(_SC_NPROCESSORS_ONLN)) // 多线程数
 }
+#define THREAD_COUNT (sysconf(_SC_NPROCESSORS_ONLN))
 
 #else
 void print_processor_info() {
@@ -104,8 +98,8 @@ void print_processor_info() {
 }
 #endif
 
-#define BASELINE_SCORE 1000   // 目标多核基准分数
-#define MAX_SCORE 999999999999        // 每项测试最高分
+#define BASELINE_SCORE 1000 // 目标多核基准分数
+#define MAX_SCORE 999999999999  // 每项测试最高分
 
 // 测试参数
 #define INTEGER_OPS_COUNT 1000000000      // 整数运算循环次数
@@ -119,6 +113,14 @@ void print_processor_info() {
 void print_progress(double progress) {
     printf("\r进度: %.2f%%", progress * 100);
     fflush(stdout);
+}
+
+double measure_time(double (*test_func)()) {
+    clock_t start = clock();
+    double score = test_func();
+    clock_t end = clock();
+    double time_spent = (double)(end - start) / CLOCKS_PER_SEC;
+    return BASELINE_SCORE / time_spent;
 }
 
 double integer_operations() {
@@ -183,56 +185,46 @@ double multi_thread_test() {
     return (double)INTEGER_OPS_COUNT / BASELINE_SCORE;
 }
 
-
-// 主函数
 int main() {
-
     #if defined(_WIN32) || defined(_WIN64)
         printf("This program is compiled for Windows.\n");
-        get_cpu_threads();
+        set_utf8_encoding_if_powershell();
     #elif defined(__linux__)
         printf("This program is compiled for Linux.\n");
     #else
         printf("Unsupported operating system.\n");
     #endif
 
-    #if defined(_WIN64) || defined(_WIN32)
-        set_utf8_encoding_if_powershell();
-    #endif
-
     print_processor_info();
 
     printf("开始整数运算测试...\n");
-    double integer_score = fmin(integer_operations(), MAX_SCORE);
+    double integer_score = measure_time(integer_operations);
     printf("整数运算分数: %.2f\n", integer_score);
 
     printf("开始浮点运算测试...\n");
-    double floating_point_score = fmin(floating_point_operations(), MAX_SCORE);
+    double floating_point_score = measure_time(floating_point_operations);
     printf("浮点运算分数: %.2f\n", floating_point_score);
 
     printf("开始位操作测试...\n");
-    double bitwise_score = fmin(bitwise_operations(), MAX_SCORE);
+    double bitwise_score = measure_time(bitwise_operations);
     printf("位操作分数: %.2f\n", bitwise_score);
 
     printf("开始分支预测测试...\n");
-    double branch_score = fmin(branch_prediction_test(), MAX_SCORE);
+    double branch_score = measure_time(branch_prediction_test);
     printf("分支预测分数: %.2f\n", branch_score);
 
     printf("开始多线程测试...\n");
-    double multi_thread_score = fmin(multi_thread_test(), MAX_SCORE);
+    double multi_thread_score = measure_time(multi_thread_test);
     printf("多线程分数: %.2f\n", multi_thread_score);
 
-    // 综合得分计算
-    double total_score = integer_score + floating_point_score + bitwise_score +
-                         branch_score + multi_thread_score;
-
-    printf("综合得分: %.2f\n", fmin(total_score, MAX_SCORE * 5));
+    double total_score = integer_score + floating_point_score + bitwise_score + branch_score + multi_thread_score;
+    printf("综合得分: %.2f\n", total_score);
 
     #if defined(_WIN32) || defined(_WIN64)
-    system("pause");  // 在程序结束前暂停，等待用户按键
+    system("pause"); // 在程序结束前暂停，等待用户按键
     #else
-    printf("按 Enter 键继续...\n");
-    getchar();  // Linux 下等待用户按下 Enter 键
+        printf("按 Enter 键继续...\n");  // Linux 下等待用户按下 Enter 键
+    getchar();
     #endif
 
     return 0;
