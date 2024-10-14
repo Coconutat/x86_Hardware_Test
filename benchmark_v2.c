@@ -185,6 +185,66 @@ double multi_thread_test() {
     return (double)INTEGER_OPS_COUNT / BASELINE_SCORE;
 }
 
+double memory_bandwidth_test() {
+    volatile char *buffer = (char *)malloc(MEMORY_BANDWIDTH_SIZE);
+    memset((void *)buffer, 0, MEMORY_BANDWIDTH_SIZE);
+    for (int i = 0; i < MEMORY_BANDWIDTH_SIZE; i++) {
+        buffer[i] = (char)(i % 256);
+        if (i % (MEMORY_BANDWIDTH_SIZE / 100) == 0) print_progress((double)i / MEMORY_BANDWIDTH_SIZE);
+    }
+    free((void *)buffer);
+    printf("\n");
+    return (double)MEMORY_BANDWIDTH_SIZE / BASELINE_SCORE;
+}
+
+double cache_test() {
+    volatile char *buffer = (char *)malloc(CACHE_TEST_SIZE);
+    memset((void *)buffer, 0, CACHE_TEST_SIZE);
+    for (int i = 0; i < CACHE_TEST_SIZE; i++) {
+        buffer[i] = (char)(i % 256);
+        if (i % (CACHE_TEST_SIZE / 100) == 0) print_progress((double)i / CACHE_TEST_SIZE);
+    }
+    free((void *)buffer);
+    printf("\n");
+    return (double)CACHE_TEST_SIZE / BASELINE_SCORE;
+}
+
+double memory_latency_test() {
+    volatile int a = 0;
+    for (int i = 0; i < MEMORY_LATENCY_TEST_COUNT; i++) {
+        a += (a * 3 + i) % 7;
+        if (i % (MEMORY_LATENCY_TEST_COUNT / 100) == 0) print_progress((double)i / MEMORY_LATENCY_TEST_COUNT);
+    }
+    printf("\n");
+    return (double)MEMORY_LATENCY_TEST_COUNT / BASELINE_SCORE;
+}
+
+double encryption_test() {
+    unsigned char key[16] = {0};     // 定义16字节的key数组
+    unsigned char data[16] = {0};    // 定义16字节的data数组
+    for (int i = 0; i < 100000000; i++) {
+        for (int j = 0; j < 16; j++) {
+            data[j] ^= key[j];       // 对应字节逐一异或
+        }
+        if (i % (100000000 / 100) == 0) 
+            print_progress((double)i / 100000000); // 打印进度
+    }
+    printf("\n");
+    return 100000000.0 / BASELINE_SCORE;
+}
+
+double compression_test() {
+    volatile char *data = (char *)malloc(100000000);
+    memset((void *)data, 'A', 100000000);
+    for (int i = 0; i < 100000000; i++) {
+        data[i] = (char)((data[i] + i) % 256);
+        if (i % (100000000 / 100) == 0) print_progress((double)i / 100000000);
+    }
+    free((void *)data);
+    printf("\n");
+    return 100000000.0 / BASELINE_SCORE;
+}
+
 int main() {
     #if defined(_WIN32) || defined(_WIN64)
         printf("This program is compiled for Windows.\n");
@@ -217,7 +277,28 @@ int main() {
     double multi_thread_score = measure_time(multi_thread_test);
     printf("多线程分数: %.2f\n", multi_thread_score);
 
-    double total_score = integer_score + floating_point_score + bitwise_score + branch_score + multi_thread_score;
+    printf("开始内存带宽测试...\n");
+    double memory_bandwidth_score = measure_time(memory_bandwidth_test);
+    printf("内存带宽分数: %.2f\n", memory_bandwidth_score);
+
+    printf("开始缓存测试...\n");
+    double cache_score = measure_time(cache_test);
+    printf("缓存分数: %.2f\n", cache_score);
+
+    printf("开始内存延迟测试...\n");
+    double memory_latency_score = measure_time(memory_latency_test);
+    printf("内存延迟分数: %.2f\n", memory_latency_score);
+
+    printf("开始加密运算测试...\n");
+    double encryption_score = measure_time(encryption_test);
+    printf("加密运算分数: %.2f\n", encryption_score);
+
+    printf("开始压缩/解压缩测试...\n");
+    double compression_score = measure_time(compression_test);
+    printf("压缩/解压缩分数: %.2f\n", compression_score);
+
+    double total_score = integer_score + floating_point_score + bitwise_score + branch_score + multi_thread_score +
+                         memory_bandwidth_score + cache_score + memory_latency_score + encryption_score + compression_score;
     printf("综合得分: %.2f\n", total_score);
 
     #if defined(_WIN32) || defined(_WIN64)
