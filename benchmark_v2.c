@@ -110,6 +110,13 @@ void print_processor_info() {
 #define CACHE_TEST_SIZE 100000000         // 缓存测试数据大小 (字节)
 #define MEMORY_LATENCY_TEST_COUNT 1000000000 // 内存延迟测试次数
 
+// 多核测试的参数
+#define MULTI_INTEGER_OPS_COUNT (INTEGER_OPS_COUNT * 4)
+#define MULTI_FLOATING_POINT_OPS_COUNT (FLOATING_POINT_OPS_COUNT * 4)
+#define MULTI_BITWISE_OPS_COUNT (BITWISE_OPS_COUNT * 4)
+#define MULTI_MEMORY_BANDWIDTH_SIZE (MEMORY_BANDWIDTH_SIZE * 2)
+
+
 void print_progress(double progress) {
     printf("\r进度: %.2f%%", progress * 100);
     fflush(stdout);
@@ -172,17 +179,70 @@ void *thread_task(void *arg) {
     return NULL;
 }
 
-double multi_thread_test() {
+// 多核整数运算测试任务
+void *multi_integer_task(void *arg) {
+    volatile int a = 1;
+    for (int i = 0; i < INTEGER_OPS_COUNT / THREAD_COUNT; i++) {
+        a += (a * 3 + i) % 7;
+        if (i % (INTEGER_OPS_COUNT / THREAD_COUNT / 100) == 0) {
+            print_progress((double)i / (INTEGER_OPS_COUNT / THREAD_COUNT));
+        }
+        printf("\n");
+    }
+    return NULL;
+}
+
+// 多核浮点运算测试任务
+void *multi_floating_point_task(void *arg) {
+    volatile double a = 1.0;
+    for (int i = 0; i < FLOATING_POINT_OPS_COUNT / THREAD_COUNT; i++) {
+        a += sin(a) * cos(a) + tan(a);
+        if (i % (FLOATING_POINT_OPS_COUNT / THREAD_COUNT / 100) == 0) {
+            print_progress((double)i / (FLOATING_POINT_OPS_COUNT / THREAD_COUNT));
+        }
+        printf("\n");
+    }
+    return NULL;
+}
+
+// 多核位操作测试任务
+void *multi_bitwise_task(void *arg) {
+    volatile int a = 0x55555555;
+    for (int i = 0; i < BITWISE_OPS_COUNT / THREAD_COUNT; i++) {
+        a ^= (a << 1) | (a >> 1);
+        if (i % (BITWISE_OPS_COUNT / THREAD_COUNT / 100) == 0) {
+            print_progress((double)i / (BITWISE_OPS_COUNT / THREAD_COUNT));
+        }
+        printf("\n");
+    }
+    return NULL;
+}
+
+// 通用多核测试函数
+double multi_thread_test(void *(*task)(void *), int ops_count) {
     pthread_t threads[THREAD_COUNT];
     for (int i = 0; i < THREAD_COUNT; i++) {
-        pthread_create(&threads[i], NULL, thread_task, NULL);
-        print_progress((double)i / THREAD_COUNT);
+        pthread_create(&threads[i], NULL, task, NULL);
     }
     for (int i = 0; i < THREAD_COUNT; i++) {
         pthread_join(threads[i], NULL);
     }
-    printf("\n");
-    return (double)INTEGER_OPS_COUNT / BASELINE_SCORE;
+    return (double)ops_count / BASELINE_SCORE;
+}
+
+// 多核整数运算测试
+double multi_thread_integer_test() {
+    return multi_thread_test(multi_integer_task, INTEGER_OPS_COUNT * THREAD_COUNT);
+}
+
+// 多核浮点运算测试
+double multi_thread_floating_point_test() {
+    return multi_thread_test(multi_floating_point_task, FLOATING_POINT_OPS_COUNT * THREAD_COUNT);
+}
+
+// 多核位操作测试
+double multi_thread_bitwise_test() {
+    return multi_thread_test(multi_bitwise_task, BITWISE_OPS_COUNT * THREAD_COUNT);
 }
 
 double memory_bandwidth_test() {
@@ -195,6 +255,28 @@ double memory_bandwidth_test() {
     free((void *)buffer);
     printf("\n");
     return (double)MEMORY_BANDWIDTH_SIZE / BASELINE_SCORE;
+}
+
+// 多核内存带宽测试
+void *multi_memory_bandwidth_task(void *arg) {
+    volatile char *buffer = (char *)malloc(MULTI_MEMORY_BANDWIDTH_SIZE / THREAD_COUNT);
+    memset((void *)buffer, 0, MULTI_MEMORY_BANDWIDTH_SIZE / THREAD_COUNT);
+    for (int i = 0; i < MULTI_MEMORY_BANDWIDTH_SIZE / THREAD_COUNT; i++) {
+        buffer[i] = (char)(i % 256);
+    }
+    free((void *)buffer);
+    return NULL;
+}
+
+double multi_thread_memory_bandwidth_test() {
+    pthread_t threads[THREAD_COUNT];
+    for (int i = 0; i < THREAD_COUNT; i++) {
+        pthread_create(&threads[i], NULL, multi_memory_bandwidth_task, NULL);
+    }
+    for (int i = 0; i < THREAD_COUNT; i++) {
+        pthread_join(threads[i], NULL);
+    }
+    return (double)MULTI_MEMORY_BANDWIDTH_SIZE / BASELINE_SCORE;
 }
 
 double cache_test() {
@@ -257,30 +339,42 @@ int main() {
 
     print_processor_info();
 
-    printf("开始整数运算测试...\n");
+    printf("开始单核整数运算测试...\n");
     double integer_score = measure_time(integer_operations);
-    printf("整数运算分数: %.2f\n", integer_score);
+    printf("单核整数运算分数: %.2f\n", integer_score);
 
-    printf("开始浮点运算测试...\n");
+    printf("开始单核浮点运算测试...\n");
     double floating_point_score = measure_time(floating_point_operations);
-    printf("浮点运算分数: %.2f\n", floating_point_score);
+    printf("单核浮点运算分数: %.2f\n", floating_point_score);
 
-    printf("开始位操作测试...\n");
+    printf("开始单核位操作测试...\n");
     double bitwise_score = measure_time(bitwise_operations);
-    printf("位操作分数: %.2f\n", bitwise_score);
+    printf("单核位操作分数: %.2f\n", bitwise_score);
 
-    printf("开始分支预测测试...\n");
+    printf("开始单核分支预测测试...\n");
     double branch_score = measure_time(branch_prediction_test);
-    printf("分支预测分数: %.2f\n", branch_score);
+    printf("单核分支预测分数: %.2f\n", branch_score);
 
-    printf("开始多线程测试...\n");
-    double multi_thread_score = measure_time(multi_thread_test);
-    printf("多线程分数: %.2f\n", multi_thread_score);
-
-    printf("开始内存带宽测试...\n");
+    printf("开始单核内存带宽测试...\n");
     double memory_bandwidth_score = measure_time(memory_bandwidth_test);
-    printf("内存带宽分数: %.2f\n", memory_bandwidth_score);
+    printf("单核内存带宽分数: %.2f\n", memory_bandwidth_score);
 
+    printf("开始多核整数测试...\n");
+    double multi_integer_score = measure_time(multi_thread_integer_test);
+    printf("多核整数分数: %.2f\n", multi_integer_score);
+
+    printf("开始多核浮点运算测试...\n");
+    double multi_thread_floating_point_score = measure_time(multi_thread_floating_point_test);
+    printf("多核浮点运算分数: %.2f\n", multi_thread_floating_point_score);
+
+    printf("开始多核位操作测试...\n");
+    double multi_thread_bitwise_score = measure_time(multi_thread_bitwise_test);
+    printf("多核位操作分数: %.2f\n", multi_thread_bitwise_score);
+
+    printf("开始多核内存带宽测试...\n");
+    double multi_thread_memory_bandwidth_score = measure_time(multi_thread_memory_bandwidth_test);
+    printf("多核内存带宽分数: %.2f\n", multi_thread_memory_bandwidth_score);
+    
     printf("开始缓存测试...\n");
     double cache_score = measure_time(cache_test);
     printf("缓存分数: %.2f\n", cache_score);
@@ -297,8 +391,9 @@ int main() {
     double compression_score = measure_time(compression_test);
     printf("压缩/解压缩分数: %.2f\n", compression_score);
 
-    double total_score = integer_score + floating_point_score + bitwise_score + branch_score + multi_thread_score +
-                         memory_bandwidth_score + cache_score + memory_latency_score + encryption_score + compression_score;
+    double total_score = integer_score + floating_point_score + bitwise_score + branch_score + multi_integer_score +
+                         memory_bandwidth_score + cache_score + memory_latency_score + encryption_score + compression_score +
+                         multi_thread_floating_point_score + multi_thread_bitwise_score + multi_thread_memory_bandwidth_score;
     printf("综合得分: %.2f\n", total_score);
 
     #if defined(_WIN32) || defined(_WIN64)
