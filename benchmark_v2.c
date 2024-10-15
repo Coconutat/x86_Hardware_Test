@@ -181,39 +181,65 @@ void *thread_task(void *arg) {
 
 // 多核整数运算测试任务
 void *multi_integer_task(void *arg) {
+    int thread_id = *(int *)arg;
     volatile int a = 1;
-    for (int i = 0; i < INTEGER_OPS_COUNT / THREAD_COUNT; i++) {
+    int start = thread_id * (MULTI_INTEGER_OPS_COUNT / THREAD_COUNT);
+    int end = start + (MULTI_INTEGER_OPS_COUNT / THREAD_COUNT);
+
+    for (int i = start; i < end; i++) {
         a += (a * 3 + i) % 7;
-        if (i % (INTEGER_OPS_COUNT / THREAD_COUNT / 100) == 0) {
-            print_progress((double)i / (INTEGER_OPS_COUNT / THREAD_COUNT));
+        if (i % (MULTI_INTEGER_OPS_COUNT / THREAD_COUNT / 100) == 0) {
+            print_progress((double)(i - start) / (MULTI_INTEGER_OPS_COUNT / THREAD_COUNT));
         }
-        printf("\n");
     }
     return NULL;
 }
 
 // 多核浮点运算测试任务
 void *multi_floating_point_task(void *arg) {
+    long start_index = (long)arg * (FLOATING_POINT_OPS_COUNT / THREAD_COUNT);
+    long end_index = start_index + (FLOATING_POINT_OPS_COUNT / THREAD_COUNT);
     volatile double a = 1.0;
-    for (int i = 0; i < FLOATING_POINT_OPS_COUNT / THREAD_COUNT; i++) {
+    
+    for (long i = start_index; i < end_index; i++) {
         a += sin(a) * cos(a) + tan(a);
-        if (i % (FLOATING_POINT_OPS_COUNT / THREAD_COUNT / 100) == 0) {
-            print_progress((double)i / (FLOATING_POINT_OPS_COUNT / THREAD_COUNT));
+        if (i % (FLOATING_POINT_OPS_COUNT / 100) == 0) {
+            print_progress((double)i / FLOATING_POINT_OPS_COUNT);
         }
-        printf("\n");
     }
     return NULL;
 }
 
+// 多核浮点运算测试
+double multi_thread_floating_point_test() {
+    pthread_t threads[THREAD_COUNT];
+    clock_t start = clock();
+
+    for (long i = 0; i < THREAD_COUNT; i++) {
+        pthread_create(&threads[i], NULL, multi_floating_point_task, (void *)i);
+    }
+    for (int i = 0; i < THREAD_COUNT; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    clock_t end = clock();
+    double time_spent = (double)(end - start) / CLOCKS_PER_SEC;
+    printf("\n");
+    return BASELINE_SCORE / time_spent;
+}
+
 // 多核位操作测试任务
 void *multi_bitwise_task(void *arg) {
+    int thread_id = *(int *)arg;
     volatile int a = 0x55555555;
-    for (int i = 0; i < BITWISE_OPS_COUNT / THREAD_COUNT; i++) {
+    int start = thread_id * (MULTI_BITWISE_OPS_COUNT / THREAD_COUNT);
+    int end = start + (MULTI_BITWISE_OPS_COUNT / THREAD_COUNT);
+
+    for (int i = start; i < end; i++) {
         a ^= (a << 1) | (a >> 1);
-        if (i % (BITWISE_OPS_COUNT / THREAD_COUNT / 100) == 0) {
-            print_progress((double)i / (BITWISE_OPS_COUNT / THREAD_COUNT));
+        if (i % (MULTI_BITWISE_OPS_COUNT / THREAD_COUNT / 100) == 0) {
+            print_progress((double)(i - start) / (MULTI_BITWISE_OPS_COUNT / THREAD_COUNT));
         }
-        printf("\n");
     }
     return NULL;
 }
@@ -221,28 +247,32 @@ void *multi_bitwise_task(void *arg) {
 // 通用多核测试函数
 double multi_thread_test(void *(*task)(void *), int ops_count) {
     pthread_t threads[THREAD_COUNT];
+    int thread_ids[THREAD_COUNT];
+    clock_t start = clock();
+
     for (int i = 0; i < THREAD_COUNT; i++) {
-        pthread_create(&threads[i], NULL, task, NULL);
+        thread_ids[i] = i;
+        pthread_create(&threads[i], NULL, task, &thread_ids[i]);
     }
+
     for (int i = 0; i < THREAD_COUNT; i++) {
         pthread_join(threads[i], NULL);
     }
-    return (double)ops_count / BASELINE_SCORE;
+    clock_t end = clock();
+    double time_spent = (double)(end - start) / CLOCKS_PER_SEC;
+    return BASELINE_SCORE / time_spent;
 }
 
 // 多核整数运算测试
 double multi_thread_integer_test() {
     return multi_thread_test(multi_integer_task, INTEGER_OPS_COUNT * THREAD_COUNT);
-}
-
-// 多核浮点运算测试
-double multi_thread_floating_point_test() {
-    return multi_thread_test(multi_floating_point_task, FLOATING_POINT_OPS_COUNT * THREAD_COUNT);
+    printf("\n");
 }
 
 // 多核位操作测试
 double multi_thread_bitwise_test() {
     return multi_thread_test(multi_bitwise_task, BITWISE_OPS_COUNT * THREAD_COUNT);
+    printf("\n");
 }
 
 double memory_bandwidth_test() {
@@ -255,28 +285,6 @@ double memory_bandwidth_test() {
     free((void *)buffer);
     printf("\n");
     return (double)MEMORY_BANDWIDTH_SIZE / BASELINE_SCORE;
-}
-
-// 多核内存带宽测试
-void *multi_memory_bandwidth_task(void *arg) {
-    volatile char *buffer = (char *)malloc(MULTI_MEMORY_BANDWIDTH_SIZE / THREAD_COUNT);
-    memset((void *)buffer, 0, MULTI_MEMORY_BANDWIDTH_SIZE / THREAD_COUNT);
-    for (int i = 0; i < MULTI_MEMORY_BANDWIDTH_SIZE / THREAD_COUNT; i++) {
-        buffer[i] = (char)(i % 256);
-    }
-    free((void *)buffer);
-    return NULL;
-}
-
-double multi_thread_memory_bandwidth_test() {
-    pthread_t threads[THREAD_COUNT];
-    for (int i = 0; i < THREAD_COUNT; i++) {
-        pthread_create(&threads[i], NULL, multi_memory_bandwidth_task, NULL);
-    }
-    for (int i = 0; i < THREAD_COUNT; i++) {
-        pthread_join(threads[i], NULL);
-    }
-    return (double)MULTI_MEMORY_BANDWIDTH_SIZE / BASELINE_SCORE;
 }
 
 double cache_test() {
@@ -370,11 +378,7 @@ int main() {
     printf("开始多核位操作测试...\n");
     double multi_thread_bitwise_score = measure_time(multi_thread_bitwise_test);
     printf("多核位操作分数: %.2f\n", multi_thread_bitwise_score);
-
-    printf("开始多核内存带宽测试...\n");
-    double multi_thread_memory_bandwidth_score = measure_time(multi_thread_memory_bandwidth_test);
-    printf("多核内存带宽分数: %.2f\n", multi_thread_memory_bandwidth_score);
-    
+ 
     printf("开始缓存测试...\n");
     double cache_score = measure_time(cache_test);
     printf("缓存分数: %.2f\n", cache_score);
@@ -393,7 +397,7 @@ int main() {
 
     double total_score = integer_score + floating_point_score + bitwise_score + branch_score + multi_integer_score +
                          memory_bandwidth_score + cache_score + memory_latency_score + encryption_score + compression_score +
-                         multi_thread_floating_point_score + multi_thread_bitwise_score + multi_thread_memory_bandwidth_score;
+                         multi_thread_floating_point_score + multi_thread_bitwise_score;
     printf("综合得分: %.2f\n", total_score);
 
     #if defined(_WIN32) || defined(_WIN64)
