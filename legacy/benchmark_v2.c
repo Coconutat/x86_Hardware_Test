@@ -404,7 +404,7 @@ int main() {
     system("pause"); // 在程序结束前暂停，等待用户按键
     #else
         printf("按 Enter 键继续...\n");  // Linux 下等待用户按下 Enter 键
-    getchar();
+        getchar();
     #endif
 
     return 0;
