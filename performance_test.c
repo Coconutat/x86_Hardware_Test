@@ -2,14 +2,26 @@
 #include <stdlib.h>
 #include <time.h>
 #include <pthread.h>
+#include <string.h>
+
 #ifdef _WIN32
 #include <windows.h>
+#include <intrin.h>
 #else
-#include <unistd.h>  // 用于 sysconf 函数（POSIX）
+#include <unistd.h>
+#include <sys/sysinfo.h>
 #endif
-#include "performance_test.h"
 
-#define ITERATIONS 1000000000  // 迭代次数，可以根据需要调整
+#define ITERATIONS 500000000  // 每个测试的迭代次数
+#define BASELINE_CPU_SCORE 1000.0  // 基准CPU的分数
+
+typedef struct {
+    int num_cores;
+    double single_core_score;
+    double multi_core_score;
+    double floating_point_score;
+    double memory_score;
+} ScoreCard;
 
 void *multithreaded_task(void *arg) {
     long sum = 0;
@@ -19,9 +31,13 @@ void *multithreaded_task(void *arg) {
     return NULL;
 }
 
-void run_single_core_test() {
+double calculate_score(double baseline, double time_taken) {
+    return (baseline / time_taken) * BASELINE_CPU_SCORE;
+}
+
+double run_single_core_test() {
     clock_t start, end;
-    double cpu_time_used;
+    double time_taken;
     
     start = clock();
     long sum = 0;
@@ -30,24 +46,14 @@ void run_single_core_test() {
     }
     end = clock();
 
-    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-    printf("单核性能测试时间: %f 秒\n", cpu_time_used);
+    time_taken = ((double) (end - start)) / CLOCKS_PER_SEC;
+    return calculate_score(1.0, time_taken);  // 假设1.0秒为基准
 }
 
-void run_multi_core_test() {
-    int num_cores;
-
-    #ifdef _WIN32
-        SYSTEM_INFO sysinfo;
-        GetSystemInfo(&sysinfo);
-        num_cores = sysinfo.dwNumberOfProcessors;  // 获取逻辑CPU核数
-    #else
-        num_cores = sysconf(_SC_NPROCESSORS_ONLN);  // POSIX系统获取逻辑CPU核数
-    #endif
-
+double run_multi_core_test(int num_cores) {
     pthread_t threads[num_cores];
     clock_t start, end;
-    double cpu_time_used;
+    double time_taken;
     
     start = clock();
     for (int i = 0; i < num_cores; i++) {
@@ -58,14 +64,13 @@ void run_multi_core_test() {
     }
     end = clock();
 
-    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-    printf("多核性能测试时间: %f 秒 (线程数: %d)\n", cpu_time_used, num_cores);
+    time_taken = ((double) (end - start)) / CLOCKS_PER_SEC;
+    return calculate_score(0.5 * num_cores, time_taken);  // 假设0.5秒为基准
 }
 
-void run_floating_point_test() {
+double run_floating_point_test() {
     clock_t start, end;
-    double cpu_time_used;
-    double result = 1.0;
+    double result = 1.0, time_taken;
 
     start = clock();
     for (long i = 0; i < ITERATIONS; i++) {
@@ -74,14 +79,14 @@ void run_floating_point_test() {
     }
     end = clock();
 
-    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-    printf("浮点运算性能测试时间: %f 秒\n", cpu_time_used);
+    time_taken = ((double) (end - start)) / CLOCKS_PER_SEC;
+    return calculate_score(1.2, time_taken);  // 假设1.2秒为基准
 }
 
-void run_memory_test() {
+double run_memory_test() {
     clock_t start, end;
-    double cpu_time_used;
-    const size_t size = 1024 * 1024 * 100;
+    double time_taken;
+    const size_t size = 1024 * 1024 * 50;
     char *buffer = (char*) malloc(size);
 
     start = clock();
@@ -91,20 +96,45 @@ void run_memory_test() {
     end = clock();
     free(buffer);
 
-    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-    printf("内存性能测试时间: %f 秒\n", cpu_time_used);
+    time_taken = ((double) (end - start)) / CLOCKS_PER_SEC;
+    return calculate_score(1.5, time_taken);  // 假设1.5秒为基准
+}
+
+int get_core_count() {
+#ifdef _WIN32
+    SYSTEM_INFO sysinfo;
+    GetSystemInfo(&sysinfo);
+    return sysinfo.dwNumberOfProcessors;
+#else
+    return get_nprocs();  // Linux下使用get_nprocs获取核心数
+#endif
+}
+
+void display_scores(ScoreCard *scores) {
+    printf("\n===== CPU 测试结果 =====\n");
+    printf("单核得分: %.2f\n", scores->single_core_score);
+    printf("多核得分: %.2f\n", scores->multi_core_score);
+    printf("浮点运算得分: %.2f\n", scores->floating_point_score);
+    printf("内存带宽得分: %.2f\n", scores->memory_score);
+    printf("\n总得分: %.2f\n", scores->single_core_score + scores->multi_core_score +
+                                     scores->floating_point_score + scores->memory_score);
 }
 
 void run_performance_test() {
-    printf("开始单核性能测试...\n");
-    run_single_core_test();
-    
-    printf("开始多核性能测试...\n");
-    run_multi_core_test();
+    ScoreCard scores;
+    scores.num_cores = get_core_count();
 
-    printf("开始浮点运算性能测试...\n");
-    run_floating_point_test();
+    printf("正在运行单核测试...\n");
+    scores.single_core_score = run_single_core_test();
 
-    printf("开始内存性能测试...\n");
-    run_memory_test();
+    printf("正在运行多核测试 (核心数: %d)...\n", scores.num_cores);
+    scores.multi_core_score = run_multi_core_test(scores.num_cores);
+
+    printf("正在运行浮点运算测试...\n");
+    scores.floating_point_score = run_floating_point_test();
+
+    printf("正在运行内存测试...\n");
+    scores.memory_score = run_memory_test();
+
+    display_scores(&scores);
 }
