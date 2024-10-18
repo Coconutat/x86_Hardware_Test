@@ -16,9 +16,11 @@ int main() {
     #endif
 
     // 显示CPU信息
+    printf("显示CPU信息...\n");
     display_cpu_info();
 
     // 运行性能测试
+    printf("运行性能测试...\n");
     run_performance_test();
 
     #if defined(_WIN32) || defined(_WIN64)
