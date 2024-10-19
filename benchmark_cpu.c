@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "cpu_info.h"
+#include "gpu_info.h"
 #include "performance_test.h"
 
 #if defined(_WIN32) || defined(_WIN64) // Windows 系统
@@ -18,6 +19,10 @@ int main() {
     // 显示CPU信息
     printf("显示CPU信息...\n");
     display_cpu_info();
+
+    // 显示GPU信息
+    printf("显示GPU信息...\n");
+    get_gpu_info();
 
     // 运行性能测试
     printf("运行性能测试...\n");
